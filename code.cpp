@@ -40,7 +40,7 @@ class LockMgr {
 protected:
     // Constructor to intitialize readLock, writeLock, lock and conditon variables
     // arg_variables: <variable_name, its_initial_value>
-    LockMgr (vector <pair<char, int>> arg_variables) {
+    LockMgr (vector <pair<string, int>> arg_variables) {
         lock=PTHREAD_MUTEX_INITIALIZER;
 
         for (auto it:arg_variables) {
@@ -105,12 +105,12 @@ protected:
 
 // DataBase to Store the Variable Values
 class DataBase: public LockMgr {
-    map<char, int> variables;
+    map<string, int> variables;
 
 public:
     // Constructor to intitialize readLock, writeLock and variables
     // arg_variables: <variable_name, its_initial_value>
-    DataBase (vector <pair<char, int>> arg_variables) : LockMgr(arg_variables) {
+    DataBase (vector <pair<string, int>> arg_variables) : LockMgr(arg_variables) {
         for (auto it:arg_variables) {
             variables[it.first] = it.second;
         }
@@ -119,7 +119,7 @@ public:
     }
 
     // Get the current value of a variable
-    int Read(char variableName, string transactionID) {
+    int Read(string variableName, string transactionID) {
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
         
@@ -127,12 +127,22 @@ public:
     }
     
     // Update the value of an Existing Variable
-    void Write(char variableName, int newValue, string transactionID) {
+    void Write(string variableName, int newValue, string transactionID) {
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
         
         variables[variableName] = newValue;
     }
+
+    void executeTransaction(Transaction currTransaction) {
+        map <string, int> tmp;
+        
+        // Execute Transaction Operations Line By Line
+        for (auto command:currTransaction.operations) {
+
+        }
+    }
+
 };
 
 pair<DataBase, vector<Transaction>> parse(string file_name) {
@@ -153,12 +163,17 @@ pair<DataBase, vector<Transaction>> parse(string file_name) {
     getline(file_obj, line);
 
     // Parsing list of Arguments to a list
-    vector<pair<char, int>> listVariables;
-    char currVariableName;
+    vector<pair<string, int>> listVariables;
+    string currVariableName;
     for(int i = 0; line[i] != '\0'; i++) {
+        // Resetting currVariableName
+        currVariableName = "";
 
         // Reading Variable name
-        currVariableName = line[i++];
+        while (line[i] != ' ') {
+            currVariableName += line[i++];
+        }
+
         int num = 0;
 
         // skipping spaces
@@ -199,6 +214,15 @@ int main() {
     string filename = "input1.txt";
     auto x = parse(filename);
 
+    auto db = x.first;
+    auto listTransactions = x.second;
+
+    // Asking Database to Execute All Transactions
+    // Different Threads to be made here
+    for (auto T:listTransactions) {
+        // Execute on a New Thread
+        db.executeTransaction(T);
+    }
 
     return 0;
 }
