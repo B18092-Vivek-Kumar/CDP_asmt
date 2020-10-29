@@ -31,13 +31,13 @@ class LockMgr {
     // Default Value is assigned if variable in Question is unlocked
     // condition_var : <variableName,conditionVariable>
 
+protected:
     pthread_mutex_t lock;
     map <string, pthread_cond_t> condition_var;
     map <string, set<string>> readLock;
     map <string, string> writeLock;
     //string Default = "\0";
 
-protected:
     // Constructor to intitialize readLock, writeLock, lock and conditon variables
     // arg_variables: <variable_name, its_initial_value>
     LockMgr (vector <pair<string, int>> arg_variables) {
@@ -89,16 +89,19 @@ protected:
 
     //void downgradeLock (string TransactionID, string variableName) {}
 
-    void releaseLock (string TransactionID, string variable_With_WriteLock){
+    void releaseLock (string transactionID, string variableWithLock){
 
         //release the readLocks of this transaction
         for(auto &it:readLock){
-            if(it.second.find(TransactionID)!=it.second.end()){
-                it.second.erase(TransactionID);
+            if(it.second.find(transactionID)!=it.second.end()){
+                it.second.erase(transactionID);
             }
         }
         //release the writeLocks of this transaction
-        writeLock.erase(variable_With_WriteLock);
+        if (writeLock.find(variableWithLock) != writeLock.end()) {
+            if (writeLock[variableWithLock] == transactionID)
+                writeLock.erase(variableWithLock);
+        }
     }
 };
 
@@ -106,6 +109,7 @@ protected:
 // DataBase to Store the Variable Values
 class DataBase: public LockMgr {
     map<string, int> variables;
+    map<string, int> backup;
 
 public:
     // Constructor to intitialize readLock, writeLock and variables
@@ -113,6 +117,7 @@ public:
     DataBase (vector <pair<string, int>> arg_variables) : LockMgr(arg_variables) {
         for (auto it:arg_variables) {
             variables[it.first] = it.second;
+            backup[it.first] = it.second;
         }
 
         cout << "Variables Initialized" << "\n";
@@ -122,6 +127,9 @@ public:
     int Read(string variableName, string transactionID) {
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
+
+        acquireReadLock(transactionID, variableName);
+        backup[variableName] = variables[variableName];
         
         return variables[variableName];
     }
@@ -131,15 +139,81 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
         
+        if (readLock[variableName].find(transactionID) != readLock.end())
+            upgradeLock(transactionID, variableName);
+        else 
+            acquireWriteLock(transactionID, variableName);
+
+        backup[variableName] = variables[variableName];
+        
         variables[variableName] = newValue;
+    }
+
+    void Commit(string transactionID) {
+        for (auto i:writeLock) {
+            if (i.second == transactionID) {
+                releaseLock(transactionID, t.first);
+            }
+        }
+    }
+
+    void Abort(string transactionID) {
+        for (auto i:writeLock) {
+            if (i.second == transactionID) {
+                variables[i.first] = backup[i.first];
+                releaseLock(transactionID, t.first);
+            }
+        }
     }
 
     void executeTransaction(Transaction currTransaction) {
         map <string, int> tmp;
-        
+
         // Execute Transaction Operations Line By Line
         for (auto command:currTransaction.operations) {
+            vector <string> splitedCommand;
+            string word;
+            for (int i = 0; command[i] != '\0'; i++) {
+                if (i == ' ') {
+                    splitedCommand.push_back(word);
+                    word = "";
+                }
+                else {
+                    word += command[i];
+                }
+            }
 
+            if (splitedCommand[0] == "R") {
+                tmp[splitedCommand[1]] = Read(splitedCommand[1], currTransaction.ID);
+            }
+            else if (splitedCommand[0] == "W") {
+                Write(splitedCommand[1], tmp[splitedCommand[1]], currTransaction.ID);
+            }
+            else if (splitedCommand[0] == "C") {
+                Commit(currTransaction.ID);
+            }
+            else if (splitedCommand[0] == "A") {
+                Abort(currTransaction.ID)
+            }
+            else if (variables.find(splittedCommand) == variables.end()) {
+                throw "VariableNotFoundError";
+            }
+            else {
+                int calc = 0;
+                int add = 1;
+                for (int i = 2; i < splitedCommand.size(); i += 2) {
+                    add = (splitedCommand[i-1] == "+" || splitedCommand[i-1] == "=") - (splitedCommand[i-1] == "-");
+                    
+                    if (tmp.find(splitedCommand[i]) == tmp.end()) {
+                        calc += add*(tmp[splitedCommand[i]]);
+                    }
+                    else {
+                        calc += add*stoi(splitedCommand[i]);
+                    }
+                }
+
+                tmp[splitedCommand[0]] = calc;
+            }
         }
     }
 
