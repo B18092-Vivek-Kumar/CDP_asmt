@@ -1,0 +1,19 @@
+3
+U 10 V 20 X 30 Y 40 Z 50
+Tx001
+R U
+U = U + 100
+W U
+C
+Tx002
+R Y
+R U
+Y = U - Y
+W Y
+C
+Tx003
+R X
+R V
+X = X + V
+W X
+C
