@@ -139,9 +139,11 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
         
-        if (readLock[])
+        if (readLock[variableName].find(transactionID) != readLock.end())
+            upgradeLock(transactionID, variableName);
+        else 
+            acquireWriteLock(transactionID, variableName);
 
-        acquireWriteLock();
         backup[variableName] = variables[variableName];
         
         variables[variableName] = newValue;
