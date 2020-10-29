@@ -40,7 +40,7 @@ class LockMgr {
 protected:
     // Constructor to intitialize readLock, writeLock, lock and conditon variables
     // arg_variables: <variable_name, its_initial_value>
-    LockMgr (vector <pair<string, int>> arg_variables) {
+    LockMgr (vector <pair<string, int> > arg_variables) {
         lock=PTHREAD_MUTEX_INITIALIZER;
 
         for (auto it:arg_variables) {
@@ -52,7 +52,9 @@ protected:
         cout << "Locks Initialized" << "\n";
     }
 
+
     void acquireReadLock (string TransactionID, string variableName){
+        //condition varibles are always used with a lock
         pthread_mutex_lock(&lock);
 
         //check if there is already a writeLock on that variable by some other thread
@@ -134,7 +136,13 @@ public:
         variables[variableName] = newValue;
     }
 
-    void executeTransaction(Transaction currTransaction) {
+    // parameters are passed as a void pointer by convention
+    // in the thread function and it returns a void pointer too.
+    void* executeTransaction(void* arg) {
+        // Converting the void pointer first into a pointer object
+        // of Transaction class and then dereferencing it
+        Transaction currTransaction = *((Transaction*)arg);
+
         map <string, int> tmp;
         
         // Execute Transaction Operations Line By Line
@@ -145,7 +153,7 @@ public:
 
 };
 
-pair<DataBase, vector<Transaction>> parse(string file_name) {
+pair<DataBase, vector<Transaction> > parse(string file_name) {
     vector<Transaction> rv;
 
     ifstream file_obj;
@@ -223,10 +231,26 @@ int main() {
 
     // Asking Database to Execute All Transactions
     // Different Threads to be made here
-    for (auto T:listTransactions) {
-        // Execute on a New Thread
-        db.executeTransaction(T);
+
+    //No of transactions
+    int N=listTransaction.size();
+    //Declaring an array of threads to execute each transaction
+    //on a separate thread
+    pthread_t trd[N];
+
+
+    for(int i=0;i<N;i++){
+        //Execute on a new thread
+        //
+        pthread_create(&(trd[i]),NULL,db.executeTransaction,&listTransactions[i]);
     }
 
+
+    void* status;
+    //Joining each thread with the main function
+    //so that the main doesn't exit before the created threads
+    for(int i=0;i<N;i++){
+        pthread_join(trd[i],&status);
+    }
     return 0;
 }
