@@ -200,8 +200,10 @@ pair<DataBase, vector<Transaction>> parse(string file_name) {
 
         while (getline(file_obj, line)) {
             T.operations.push_back(line);
-            if (line == "C" || line == "A")
+            if (line == "C" || line == "A"){
+                T.outcome=((line=="C")?1:0);
                 break;
+            }
         }
 
         rv.push_back(T);
