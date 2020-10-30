@@ -68,7 +68,7 @@ protected:
         pthread_mutex_lock(&lock);
 
         //check if there is already a writeLock or a readLock on that variable by some other thread
-        while(writeLock.find(variableName)!=writeLock.end() || readLock.find(variableName)!=readLock.end())
+        while(writeLock.find(variableName)!=writeLock.end() || readLock[variableName].size()>0)
             pthread_cond_wait(&condition_var[variableName], &lock);
         
         writeLock[variableName]=TransactionID;
