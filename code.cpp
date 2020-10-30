@@ -91,7 +91,7 @@ protected:
 
     //void downgradeLock (string TransactionID, string variableName) {}
 
-    void releaseLock (string transactionID, string variableWithLock){
+    void releaseLock (string transactionID){
 
         //release the readLocks of this transaction
         for(auto &it:readLock){
@@ -99,10 +99,15 @@ protected:
                 it.second.erase(transactionID);
             }
         }
-        //release the writeLocks of this transaction
-        if (writeLock.find(variableWithLock) != writeLock.end()) {
-            if (writeLock[variableWithLock] == transactionID)
-                writeLock.erase(variableWithLock);
+        //storing the variables that the transaction has write lock on
+        vector <string> tmp;
+        for(auto it:writeLock){
+            if(it.second==transactionID) tmp.push_back(it.first);
+        }
+        
+        //releasing the write lock
+        for(auto it:tmp){
+            writeLock.erase(it);
         }
     }
 };
