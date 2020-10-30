@@ -122,7 +122,8 @@ public:
             backup[it.first] = it.second;
         }
 
-        cout << "Variables Initialized" << "\n";
+        cout << "Variables Initialized as : ";
+        printState();
     }
 
     // Get the current value of a variable
@@ -130,8 +131,12 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
 
+        cout << transactionID <<" trying to Read " << variableName << "\n"; 
+
         acquireReadLock(transactionID, variableName);
         backup[variableName] = variables[variableName];
+
+        cout << transactionID << " acquired ReadLock on " << variableName << "\n";
         
         return variables[variableName];
     }
@@ -141,10 +146,14 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
         
-        if (readLock[variableName].find(transactionID) != readLock.end())
+        cout << transactionID <<" trying to OverWrite " << variableName << "\n"; 
+        
+        if (readLock[variableName].find(transactionID) != readLock[variableName].end())
             upgradeLock(transactionID, variableName);
         else 
             acquireWriteLock(transactionID, variableName);
+        
+        cout << transactionID << " acquired WriteLock on " << variableName << "\n";
 
         backup[variableName] = variables[variableName];
         
@@ -155,8 +164,18 @@ public:
         for (auto i:writeLock) {
             if (i.second == transactionID) {
                 releaseLock(transactionID, i.first);
+                cout << transactionID << " released Locks on " << i.first << "\n";
             }
         }
+
+        for (auto i:readLock) {
+            if (i.second.find(transactionID) != i.second.end()) {
+                releaseLock(transactionID, i.first);
+                cout << transactionID << " released  Locks on " << i.first << "\n";
+            }
+        }
+
+        cout << transactionID << " Commited !!" << "\n";
     }
 
     void Abort(string transactionID) {
@@ -164,25 +183,46 @@ public:
             if (i.second == transactionID) {
                 variables[i.first] = backup[i.first];
                 releaseLock(transactionID, i.first);
+                cout << transactionID << " released Locks on " << i.first << "\n";
             }
         }
+
+        for (auto i:readLock) {
+            if (i.second.find(transactionID) != i.second.end()) {
+                releaseLock(transactionID, i.first);
+                cout << transactionID << " released  Locks on " << i.first << "\n";
+            }
+        }
+
+        cout << transactionID << " Aborted !!" << "\n";
+    }
+
+    void printState() {
+        for (auto it:variables) {
+            cout << it.first << ":" << it.second << " , ";
+        }
+        cout << "\n";
     }
 
     // parameters are passed as a void pointer by convention
     // in the thread function and it returns a void pointer too.
-    void* executeTransaction(void* arg) {
+    void executeTransaction(Transaction currTransaction) {
         // Converting the void pointer first into a pointer object
         // of Transaction class and then dereferencing it
-        Transaction currTransaction = *((Transaction*)arg);
+        // Transaction currTransaction = *((Transaction*)arg);
 
         map <string, int> tmp;
 
+        cout << currTransaction.ID << " Executing, DataBase State "; printState();
+
         // Execute Transaction Operations Line By Line
         for (auto command:currTransaction.operations) {
+
             vector <string> splitedCommand;
             string word;
+
             for (int i = 0; command[i] != '\0'; i++) {
-                if (i == ' ') {
+                if (command[i] == ' ') {
                     splitedCommand.push_back(word);
                     word = "";
                 }
@@ -190,6 +230,7 @@ public:
                     word += command[i];
                 }
             }
+            splitedCommand.push_back(word);
 
             if (splitedCommand[0] == "R") {
                 tmp[splitedCommand[1]] = Read(splitedCommand[1], currTransaction.ID);
@@ -212,7 +253,7 @@ public:
                 for (int i = 2; i < splitedCommand.size(); i += 2) {
                     add = (splitedCommand[i-1] == "+" || splitedCommand[i-1] == "=") - (splitedCommand[i-1] == "-");
                     
-                    if (tmp.find(splitedCommand[i]) == tmp.end()) {
+                    if (tmp.find(splitedCommand[i]) != tmp.end()) {
                         calc += add*(tmp[splitedCommand[i]]);
                     }
                     else {
@@ -223,6 +264,8 @@ public:
                 tmp[splitedCommand[0]] = calc;
             }
         }
+
+        printState();
 
         pthread_exit(NULL);
     }
@@ -298,12 +341,25 @@ pair<DataBase, vector<Transaction> > parse(string file_name) {
     return {db, rv};
 } 
 
+void* execute(void * arg) {
+    // Converting the void pointer first into a pointer object
+    // of Transaction class and then dereferencing it
+    auto arg12 = *((pair<DataBase *, Transaction *>*)arg);
+
+    DataBase* db = arg12.first;
+    Transaction* T = arg12.second;
+
+    cout << T->ID << " recieved by execute\n";
+
+    db->executeTransaction(*T);
+}
+
 int main() {
     string filename = "input1.txt";
     auto x = parse(filename);
 
-    auto db = x.first;
-    auto listTransactions = x.second;
+    DataBase db = x.first;
+    vector<Transaction> listTransactions = x.second;
 
     // Asking Database to Execute All Transactions
     // Different Threads to be made here
@@ -314,11 +370,15 @@ int main() {
     //on a separate thread
     pthread_t trd[N];
 
+    vector <pair<DataBase *, Transaction *>> arg;
 
-    for(int i=0;i<N;i++){
-        //Execute on a new thread
-        //
-        pthread_create(&(trd[i]),NULL,db.executeTransaction,&listTransactions[i]);
+    for(int i=0; i<N; i++){
+        arg.push_back(make_pair(&db, &listTransactions[i]));
+
+        cout << "Sending " << arg[i].second->ID << " over to execute \n";
+        
+        // Execute on a new thread
+        pthread_create(&(trd[i]),NULL,execute,&arg[i]);
     }
 
 
@@ -328,5 +388,7 @@ int main() {
     for(int i=0;i<N;i++){
         pthread_join(trd[i],&status);
     }
+
+    cout << "\n\n\n\nResult : "; db.printState();
     return 0;
 }
