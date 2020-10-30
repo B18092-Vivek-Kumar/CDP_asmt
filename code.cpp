@@ -154,7 +154,7 @@ public:
     void Commit(string transactionID) {
         for (auto i:writeLock) {
             if (i.second == transactionID) {
-                releaseLock(transactionID, t.first);
+                releaseLock(transactionID, i.first);
             }
         }
     }
@@ -163,7 +163,7 @@ public:
         for (auto i:writeLock) {
             if (i.second == transactionID) {
                 variables[i.first] = backup[i.first];
-                releaseLock(transactionID, t.first);
+                releaseLock(transactionID, i.first);
             }
         }
     }
@@ -201,9 +201,9 @@ public:
                 Commit(currTransaction.ID);
             }
             else if (splitedCommand[0] == "A") {
-                Abort(currTransaction.ID)
+                Abort(currTransaction.ID);
             }
-            else if (variables.find(splittedCommand[0]) == variables.end()) {
+            else if (variables.find(splitedCommand[0]) == variables.end()) {
                 throw "VariableNotFoundError";
             }
             else {
@@ -309,7 +309,7 @@ int main() {
     // Different Threads to be made here
 
     //No of transactions
-    int N=listTransaction.size();
+    int N=listTransactions.size();
     //Declaring an array of threads to execute each transaction
     //on a separate thread
     pthread_t trd[N];
