@@ -16,12 +16,7 @@ public:
     // ID_Format = Tx012
     string ID;
 
-    // operations : <operation_type, variable_Name>
-    // operation_type:
-    //      "R"
-    //      "W"
-    //      "+ some_number", "- some_number"
-    //      "+ some_variable_name", "- some_variable_name"
+    // list of Operations
     vector <string> operations;
     
     // final outcome i.e. commited or aborted
@@ -240,18 +235,14 @@ public:
         mu.unlock();
     }
 
-    // parameters are passed as a void pointer by convention
-    // in the thread function and it returns a void pointer too.
     void executeTransaction(Transaction currTransaction) {
-        // Converting the void pointer first into a pointer object
-        // of Transaction class and then dereferencing it
-        // Transaction currTransaction = *((Transaction*)arg);
 
         map <string, int> tmp;
 
         mu.lock();
-        cout << currTransaction.ID << " Executing, DataBase State "; printState();
+        cout << currTransaction.ID << " Executing, DataBase State ";
         mu.unlock();
+        printState();
 
         // Execute Transaction Operations Line By Line
         for (auto command:currTransaction.operations) {
@@ -270,21 +261,23 @@ public:
             }
             splitedCommand.push_back(word);
 
+            // Execute read operation
             if (splitedCommand[0] == "R") {
                 tmp[splitedCommand[1]] = Read(splitedCommand[1], currTransaction.ID);
             }
+            // Execute write operation
             else if (splitedCommand[0] == "W") {
                 Write(splitedCommand[1], tmp[splitedCommand[1]], currTransaction.ID);
             }
+            // Execute commit operation
             else if (splitedCommand[0] == "C") {
                 Commit(currTransaction.ID);
             }
+            // Execcute abort operation
             else if (splitedCommand[0] == "A") {
                 Abort(currTransaction.ID);
             }
-            else if (variables.find(splitedCommand[0]) == variables.end()) {
-                throw "VariableNotFoundError";
-            }
+            // Execute Mathematical operation
             else {
                 int calc = 0;
                 int add = 1;
@@ -302,8 +295,6 @@ public:
                 tmp[splitedCommand[0]] = calc;
             }
         }
-
-        pthread_exit(NULL);
     }
 
 };
@@ -377,28 +368,34 @@ pair<DataBase, vector<Transaction> > parse(string file_name) {
     return {db, rv};
 } 
 
+DataBase *db;
+
+// parameters are passed as a void pointer by convention
+// in the thread function and it returns a void pointer too.
 void* execute(void * arg) {
     // Converting the void pointer first into a pointer object
     // of Transaction class and then dereferencing it
-
-    auto arg12 = *((pair<DataBase *, Transaction *>*)arg);
-
-    DataBase* db = arg12.first;
-    Transaction* T = arg12.second;
+    Transaction T = *((Transaction *)arg);
 
     mu.lock();
-    cout << T->ID << " recieved by execute\n";
-    cout << "***************************************\n";
+    cout << T.ID << " recieved by execute\n";
     mu.unlock();
 
-    // db->executeTransaction(*T);
+    db->executeTransaction(T);
+    
+    mu.lock();
+    cout << T.ID << " Execution Complete\n";
+    mu.unlock();
+
+    pthread_exit(NULL);
 }
+
 
 int main() {
     string filename = "input1.txt";
     auto x = parse(filename);
 
-    DataBase db = x.first;
+    db = &(x.first);
     vector<Transaction> listTransactions = x.second;
 
     // Asking Database to Execute All Transactions
@@ -410,17 +407,13 @@ int main() {
     //on a separate thread
     pthread_t trd[N];
 
-    vector <pair<DataBase *, Transaction *>> arg;
-
     for(int i=0; i<N; i++){
-        arg.push_back(make_pair(&db, &(listTransactions[i])));
-
         mu.lock();
-        cout << "Sending " << arg[i].second->ID << " over to execute \n";
+        cout << "Sending " << listTransactions[i].ID << " over to execute \n";
         mu.unlock();
 
         // Execute on a new thread
-        pthread_create(&(trd[i]),NULL,execute,&arg[i]);
+        pthread_create(&(trd[i]),NULL,execute,&listTransactions[i]);
     }
 
 
@@ -431,6 +424,6 @@ int main() {
         pthread_join(trd[i],&status);
     }
 
-    cout << "\n\nResult : "; db.printState();
+    cout << "\n\nResult : "; db->printState();
     return 0;
 }
