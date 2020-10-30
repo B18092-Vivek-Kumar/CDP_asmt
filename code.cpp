@@ -67,6 +67,9 @@ protected:
     void acquireWriteLock (string TransactionID, string variableName){
         pthread_mutex_lock(&lock);
 
+        if (readLock[variableName].find(TransactionID) != readLock[variableName].end())
+            return upgradeLock(TransactionID, variableName);
+
         //check if there is already a writeLock or a readLock on that variable by some other thread
         while(writeLock.find(variableName)!=writeLock.end() || readLock[variableName].size()>0)
             pthread_cond_wait(&condition_var[variableName], &lock);
@@ -76,7 +79,7 @@ protected:
     }
 
     void upgradeLock (string TransactionID, string variableName){
-        pthread_mutex_lock(&lock);
+        // pthread_mutex_lock(&lock);
 
         //if some other thread is reading or writing this variable, put this thread on sleep
         while (readLock[variableName].size()>1 || writeLock.find(variableName)!=writeLock.end())              
@@ -90,11 +93,13 @@ protected:
     //void downgradeLock (string TransactionID, string variableName) {}
 
     void releaseLock (string transactionID){
+        pthread_mutex_lock(&lock);
 
         //release the readLocks of this transaction
         for(auto &it:readLock){
             if(it.second.find(transactionID)!=it.second.end()){
                 it.second.erase(transactionID);
+                pthread_cond_signal(&condition_var[it.first]);
             }
         }
         //storing the variables that the transaction has write lock on
@@ -106,7 +111,9 @@ protected:
         //releasing the write lock
         for(auto it:tmp){
             writeLock.erase(it);
+            pthread_cond_signal(&condition_var[it]);
         }
+        pthread_mutex_unlock(&lock);
     }
 };
 
@@ -134,9 +141,9 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
 
-        mu.lock();
-        cout << transactionID <<" trying to Read " << variableName << "\n"; 
-        mu.unlock();
+        // mu.lock();
+        // cout << transactionID <<" trying to Read " << variableName << "\n"; 
+        // mu.unlock();
 
         acquireReadLock(transactionID, variableName);
         backup[variableName] = variables[variableName];
@@ -153,9 +160,9 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
         
-        mu.lock();
-        cout << transactionID <<" trying to OverWrite " << variableName << "\n"; 
-        mu.unlock();
+        // mu.lock();
+        // cout << transactionID <<" trying to OverWrite " << variableName << "\n"; 
+        // mu.unlock();
 
         if (readLock[variableName].find(transactionID) != readLock[variableName].end())
             upgradeLock(transactionID, variableName);
@@ -239,10 +246,10 @@ public:
 
         map <string, int> tmp;
 
-        mu.lock();
-        cout << currTransaction.ID << " Executing, DataBase State ";
-        mu.unlock();
-        printState();
+        // mu.lock();
+        // cout << currTransaction.ID << " Executing, DataBase State ";
+        // mu.unlock();
+        // printState();
 
         // Execute Transaction Operations Line By Line
         for (auto command:currTransaction.operations) {
@@ -391,8 +398,13 @@ void* execute(void * arg) {
 }
 
 
-int main() {
+int main(int argc, char *argv[]) {
     string filename = "input1.txt";
+
+    if (argc == 2) {
+        filename = argv[1];
+    }
+
     auto x = parse(filename);
 
     db = &(x.first);
