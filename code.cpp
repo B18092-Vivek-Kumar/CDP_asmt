@@ -5,8 +5,11 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <mutex>
 
 using namespace std;
+
+mutex mu;
 
 class Transaction {
 public:
@@ -136,13 +139,17 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
 
+        mu.lock();
         cout << transactionID <<" trying to Read " << variableName << "\n"; 
+        mu.unlock();
 
         acquireReadLock(transactionID, variableName);
         backup[variableName] = variables[variableName];
 
+        mu.lock();
         cout << transactionID << " acquired ReadLock on " << variableName << "\n";
-        
+        mu.unlock();
+
         return variables[variableName];
     }
     
@@ -151,14 +158,18 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
         
+        mu.lock();
         cout << transactionID <<" trying to OverWrite " << variableName << "\n"; 
-        
+        mu.unlock();
+
         if (readLock[variableName].find(transactionID) != readLock[variableName].end())
             upgradeLock(transactionID, variableName);
         else 
             acquireWriteLock(transactionID, variableName);
         
+        mu.lock();
         cout << transactionID << " acquired WriteLock on " << variableName << "\n";
+        mu.unlock();
 
         backup[variableName] = variables[variableName];
         
@@ -166,47 +177,67 @@ public:
     }
 
     void Commit(string transactionID) {
-        for (auto i:writeLock) {
-            if (i.second == transactionID) {
-                releaseLock(transactionID, i.first);
-                cout << transactionID << " released Locks on " << i.first << "\n";
-            }
+        vector <string> tmp;
+        for(auto it:readLock){
+            if(it.second.find(transactionID) != it.second.end()) tmp.push_back(it.first);
         }
 
-        for (auto i:readLock) {
-            if (i.second.find(transactionID) != i.second.end()) {
-                releaseLock(transactionID, i.first);
-                cout << transactionID << " released  Locks on " << i.first << "\n";
-            }
+        mu.lock();
+        for (auto it:tmp) cout << transactionID << " Released ReadLock on " << it << "\n";
+        mu.unlock();
+        tmp.clear();
+
+        for(auto it:writeLock){
+            if(it.second==transactionID) tmp.push_back(it.first);
         }
 
+        mu.lock();
+        for (auto it:tmp) cout << transactionID << " Released WriteLock on " << it << "\n";
+        mu.unlock();
+
+        releaseLock(transactionID);
+
+        mu.lock();
         cout << transactionID << " Commited !!" << "\n";
+        mu.unlock();
     }
 
     void Abort(string transactionID) {
-        for (auto i:writeLock) {
-            if (i.second == transactionID) {
-                variables[i.first] = backup[i.first];
-                releaseLock(transactionID, i.first);
-                cout << transactionID << " released Locks on " << i.first << "\n";
-            }
+        vector <string> tmp;
+        for(auto it:readLock){
+            if(it.second.find(transactionID) != it.second.end()) tmp.push_back(it.first);
         }
 
-        for (auto i:readLock) {
-            if (i.second.find(transactionID) != i.second.end()) {
-                releaseLock(transactionID, i.first);
-                cout << transactionID << " released  Locks on " << i.first << "\n";
-            }
+        mu.lock();
+        for (auto it:tmp) cout << transactionID << " Released ReadLock on " << it << "\n";
+        mu.unlock();
+        tmp.clear();
+
+        for(auto it:writeLock){
+            if(it.second==transactionID) tmp.push_back(it.first);
         }
 
+        for (auto it:tmp) {
+            variables[it] = backup[it];
+            mu.lock();
+            cout << transactionID << " Released WriteLock on " << it << "\n";
+            mu.unlock();
+        }
+
+        releaseLock(transactionID);
+
+        mu.lock();
         cout << transactionID << " Aborted !!" << "\n";
+        mu.unlock();
     }
 
     void printState() {
+        mu.lock();
         for (auto it:variables) {
             cout << it.first << ":" << it.second << " , ";
         }
         cout << "\n";
+        mu.unlock();
     }
 
     // parameters are passed as a void pointer by convention
@@ -218,7 +249,9 @@ public:
 
         map <string, int> tmp;
 
+        mu.lock();
         cout << currTransaction.ID << " Executing, DataBase State "; printState();
+        mu.unlock();
 
         // Execute Transaction Operations Line By Line
         for (auto command:currTransaction.operations) {
@@ -269,8 +302,6 @@ public:
                 tmp[splitedCommand[0]] = calc;
             }
         }
-
-        printState();
 
         pthread_exit(NULL);
     }
@@ -349,14 +380,18 @@ pair<DataBase, vector<Transaction> > parse(string file_name) {
 void* execute(void * arg) {
     // Converting the void pointer first into a pointer object
     // of Transaction class and then dereferencing it
+
     auto arg12 = *((pair<DataBase *, Transaction *>*)arg);
 
     DataBase* db = arg12.first;
     Transaction* T = arg12.second;
 
+    mu.lock();
     cout << T->ID << " recieved by execute\n";
+    cout << "***************************************\n";
+    mu.unlock();
 
-    db->executeTransaction(*T);
+    // db->executeTransaction(*T);
 }
 
 int main() {
@@ -378,10 +413,12 @@ int main() {
     vector <pair<DataBase *, Transaction *>> arg;
 
     for(int i=0; i<N; i++){
-        arg.push_back(make_pair(&db, &listTransactions[i]));
+        arg.push_back(make_pair(&db, &(listTransactions[i])));
 
+        mu.lock();
         cout << "Sending " << arg[i].second->ID << " over to execute \n";
-        
+        mu.unlock();
+
         // Execute on a new thread
         pthread_create(&(trd[i]),NULL,execute,&arg[i]);
     }
@@ -394,6 +431,6 @@ int main() {
         pthread_join(trd[i],&status);
     }
 
-    cout << "\n\n\n\nResult : "; db.printState();
+    cout << "\n\nResult : "; db.printState();
     return 0;
 }
