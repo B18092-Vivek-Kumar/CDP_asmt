@@ -1,0 +1,21 @@
+2
+U 10 V 20 X 40 Y 55 Z 6
+1
+R X
+R U
+X = X + U
+W X
+R Y
+R V
+Y = Y + V
+W Y
+C
+2
+R Y
+R Z
+Y = Y + Z
+W Y
+R X
+X = X + X
+W X
+C
