@@ -111,7 +111,8 @@ protected:
         //releasing the write lock
         for(auto it:tmp){
             writeLock.erase(it);
-            pthread_cond_signal(&condition_var[it]);
+            //multiple threads might be waiting for a readlock which can be granted to all
+            pthread_cond_broadcast(&condition_var[it]);
         }
         pthread_mutex_unlock(&lock);
     }
