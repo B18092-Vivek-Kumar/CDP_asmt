@@ -177,7 +177,7 @@ public:
             backup[it.first] = it.second;
         }
 
-        cout << "Variables Initialized as : "; printState();
+        printState();
     }
 
     // Get the current value of a variable
@@ -251,7 +251,7 @@ public:
     void printState() {
         mu.lock();
         for (auto it:variables) {
-            cout << it.first << ":" << it.second << " , ";
+            cout << it.first << " " << it.second << " ";
         }
         cout << "\n";
         mu.unlock();
@@ -286,11 +286,11 @@ public:
                 Write(splitedCommand[1], tmp[splitedCommand[1]], currTransaction.ID);
             }
             // Execute commit operation
-            else if (splitedCommand[0] == "C") {
+            else if (splitedCommand[0] == "C" && splitedCommand.size() == 1) {
                 Commit(currTransaction.ID);
             }
             // Execcute abort operation
-            else if (splitedCommand[0] == "A") {
+            else if (splitedCommand[0] == "A" && splitedCommand.size() == 1) {
                 Abort(currTransaction.ID);
             }
             // Execute Mathematical operation
@@ -385,7 +385,7 @@ pair<DataBase, vector<Transaction> > parse(string file_name) {
 } 
 
 DataBase *db;
-map <pthread_t, bool> threadComplete;
+map <string, bool> transactionComplete;
 vector<Transaction> listTransactions;
 
 // parameters are passed as a void pointer by convention
@@ -395,11 +395,14 @@ void* execute(void * arg) {
     // of Transaction class and then dereferencing it
     Transaction T = *((Transaction *)arg);
 
+    // Transaction Begins
+    transactionComplete[T.ID] = false;
+
     // Execute Transaction
     db->executeTransaction(T);
 
-    // for Bonus
-    threadComplete[pthread_self()] = true;
+    // Transaction Ends
+    transactionComplete[T.ID] = true;
 
     // Exiting thread
     pthread_exit(NULL);
@@ -409,9 +412,9 @@ void* execute(void * arg) {
 // prints the transaction ID's of all pending transactions
 void signal_callback(int sigint) {
     cout << "Transactions in a DeadLock are : ";
-    for (int i = 0; i < threadComplete.size(); i++) {
-        if (threadComplete[i] == false) {
-            cout << listTransactions[i].ID << " ";
+    for (auto i:transactionComplete) {
+        if (i.second == false) {
+            cout << i.first << " ";
         }
     }
     cout << "\n";
@@ -439,10 +442,8 @@ int main(int argc, char *argv[]) {
     pthread_t trd[N];
 
     for(int i=0; i<N; i++){
-
         // Execute on a new thread
         pthread_create(&(trd[i]),NULL,execute,&listTransactions[i]);
-        threadComplete[trd[i]] = false;
     }
 
     // For Bonus
@@ -457,6 +458,6 @@ int main(int argc, char *argv[]) {
     }
 
     // Printing the final value of all variables
-    cout << "\n\nResult : "; db->printState();
+    cout << "Result : "; db->printState();
     return 0;
 }

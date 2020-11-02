@@ -1,0 +1,118 @@
+Q1 :
+U 10 V 20 X 30 Y 40 Z 50 
+R-Lock [1, U]
+R-Lock [1, X]
+R-Lock [1, Z]
+R-Lock [2, V]
+Unlock [1, U]
+Unlock [1, X]
+Unlock [1, Z]
+Commit [1]
+R-Lock [2, Y]
+Unlock [2, V]
+Unlock [2, Y]
+Commit [2]
+Result : U 10 V 20 X 30 Y 40 Z 50
+
+Q2 :
+U 10 V 20 X 30 Y 40 Z 50 
+R-Lock [1, U]
+R-Lock [2, V]
+R-Lock [2, Y]
+R-Lock [1, X]
+Upgrade [2, V]
+Upgrade [1, U]
+Upgrade [2, Y]
+Upgrade [1, X]
+Unlock [2, V]
+Unlock [2, Y]
+Commit [2]
+R-Lock [1, Z]
+Upgrade [1, Z]
+Unlock [1, U]
+Unlock [1, X]
+Unlock [1, Z]
+Commit [1]
+Result : U 52 V 103 X 32 Y 20 Z 100 
+
+Q3 :
+P 13 Q 55 U 10 V 20 X 30 Y 40 Z 50 
+R-Lock [1, U]
+R-Lock [1, X]
+R-Lock [3, P]
+R-Lock [2, V]
+Upgrade [1, U]
+R-Lock [3, Q]
+R-Lock [2, Y]
+Upgrade [1, X]
+Upgrade [3, P]
+Upgrade [3, Q]
+Unlock [3, P]
+Unlock [3, Q]
+Abort [3]
+Upgrade [2, V]
+R-Lock [1, Z]
+Upgrade [2, Y]
+Upgrade [1, Z]
+Unlock [1, U]
+Unlock [1, X]
+Unlock [1, Z]
+Abort [1]
+Unlock [2, V]
+Unlock [2, Y]
+Commit [2]
+Result : P 13 Q 55 U 10 V 103 X 30 Y 20 Z 50
+
+Q4a :
+A 25 B 50 X 12 Y 22 Z 94   
+R-Lock [1, A]
+Upgrade [1, A]
+R-Lock [1, B]
+Wait_R-Lock [2, A]
+Upgrade [1, B]
+R-Lock [1, X]
+R-Lock [1, Z]
+Upgrade [1, X]
+Unlock [1, Z]
+Unlock [1, A]
+Unlock [1, B]
+Unlock [1, X]
+Commit [1]
+R-Lock [2, A]
+Upgrade [2, A]
+R-Lock [2, B]
+Upgrade [2, B]
+R-Lock [2, Y]
+Upgrade [2, Y]
+Unlock [2, A]
+Unlock [2, B]
+Unlock [2, Y]
+Commit [2]
+Result : A 250 B 322 X 117 Y 272 Z 94
+
+
+
+Q5a :
+U 10 V 20 X 40 Y 55 Z 6 
+R-Lock [1, X]
+R-Lock [1, U]
+R-Lock [2, Y]
+Upgrade [1, X]
+R-Lock [2, Z]
+R-Lock [1, Y]
+R-Lock [1, V]
+Wait_Upgrade [2, Y]
+Wait_Upgrade [1, Y]
+Transactions in a DeadLock are : 1 2 
+
+Q5b :
+U 10 V 20 X 40 Y 55 Z 6 
+R-Lock [1, X]
+R-Lock [2, Y]
+R-Lock [2, Z]
+R-Lock [1, U]
+Upgrade [2, Y]
+Upgrade [1, X]
+Wait_R-Lock [1, Y]
+Wait_R-Lock [2, X]
+Transactions in a DeadLock are : 1 2 
