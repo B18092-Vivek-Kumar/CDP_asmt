@@ -1,0 +1,11 @@
+U 10 V 20 X 40 Y 55 Z 6 
+R-Lock [1, X]
+R-Lock [1, U]
+R-Lock [2, Y]
+Upgrade [1, X]
+R-Lock [2, Z]
+R-Lock [1, Y]
+R-Lock [1, V]
+Wait_Upgrade [2, Y]
+Wait_Upgrade [1, Y]
+Transactions in a DeadLock are : 1 2 

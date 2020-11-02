@@ -1,0 +1,14 @@
+U 10 V 20 X 30 Y 40 Z 50 
+R-Lock [1, U]
+R-Lock [1, X]
+R-Lock [1, Z]
+R-Lock [2, V]
+Unlock [1, U]
+Unlock [1, X]
+Unlock [1, Z]
+Commit [1]
+R-Lock [2, Y]
+Unlock [2, V]
+Unlock [2, Y]
+Commit [2]
+Result : U 10 V 20 X 30 Y 40 Z 50

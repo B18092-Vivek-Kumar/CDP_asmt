@@ -1,0 +1,20 @@
+U 10 V 20 X 30 Y 40 Z 50 
+R-Lock [1, U]
+R-Lock [2, V]
+R-Lock [2, Y]
+R-Lock [1, X]
+Upgrade [2, V]
+Upgrade [1, U]
+Upgrade [2, Y]
+Upgrade [1, X]
+Unlock [2, V]
+Unlock [2, Y]
+Commit [2]
+R-Lock [1, Z]
+Upgrade [1, Z]
+Unlock [1, U]
+Unlock [1, X]
+Unlock [1, Z]
+Commit [1]
+Result : U 52 V 103 X 32 Y 20 Z 100 
+
