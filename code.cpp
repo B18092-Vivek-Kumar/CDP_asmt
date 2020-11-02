@@ -99,7 +99,7 @@ protected:
         for(auto &it:readLock){
             if(it.second.find(transactionID)!=it.second.end()){
                 it.second.erase(transactionID);
-                pthread_cond_signal(&condition_var[it.first]);
+                pthread_cond_broadcast(&condition_var[it.first]);
             }
         }
         //storing the variables that the transaction has write lock on
