@@ -1,3 +1,10 @@
+/*
+    B18048 - Ashwin Ginoria
+    B18092 - Vivek Kumar
+    B18093 - Vyom Goel
+    B18149 - Vasu Gupta
+*/
+
 #include <iostream>
 #include <pthread.h>
 #include <unistd.h>
@@ -26,7 +33,6 @@ public:
 
 class LockMgr {
     // Lock : <variableName, TransactionID>
-    // Default Value for TransactionID = '\0' = 0
     // Default Value is assigned if variable in Question is unlocked
     // condition_var : <variableName,conditionVariable>
 
@@ -35,7 +41,6 @@ protected:
     map <string, pthread_cond_t> condition_var;
     map <string, set<string>> readLock;
     map <string, string> writeLock;
-    //string Default = "\0";
 
     // Constructor to intitialize readLock, writeLock, lock and conditon variables
     // arg_variables: <variable_name, its_initial_value>
@@ -43,78 +48,116 @@ protected:
         lock=PTHREAD_MUTEX_INITIALIZER;
 
         for (auto it:arg_variables) {
-            // readLock[it.first];
-            // writeLock[it.first] = Default;
             condition_var[it.first]=PTHREAD_COND_INITIALIZER;
         }
-
-        cout << "Locks Initialized" << "\n";
     }
 
-
     void acquireReadLock (string TransactionID, string variableName){
-        //condition varibles are always used with a lock
+        // mutex lock to avoid simulataneous manipulation of condition variable
         pthread_mutex_lock(&lock);
 
-        //check if there is already a writeLock on that variable by some other thread
-        while(writeLock.find(variableName)!=writeLock.end())
+        // check if there is already a writeLock on that variable by some other thread
+        while(writeLock.find(variableName)!=writeLock.end()) {
+            mu.lock();
+            cout << "Wait_R-Lock [" << TransactionID << ", " << variableName << "]\n";
+            mu.unlock();
             pthread_cond_wait(&condition_var[variableName], &lock);
+        }
         
-        //insert the transaction id into the set for that variable
+        // insert the transaction id into the set for that variable
         readLock[variableName].insert(TransactionID);
+
+        mu.lock();
+        cout << "R-Lock [" << TransactionID << ", " << variableName << "]\n";
+        mu.unlock();
+
+        // unlocking mutex
         pthread_mutex_unlock(&lock);
     }
 
     void acquireWriteLock (string TransactionID, string variableName){
+        // mutex lock to avoid simulataneous manipulation of condition variable
         pthread_mutex_lock(&lock);
 
-        if (readLock[variableName].find(TransactionID) != readLock[variableName].end())
-            return upgradeLock(TransactionID, variableName);
-
-        //check if there is already a writeLock or a readLock on that variable by some other thread
-        while(writeLock.find(variableName)!=writeLock.end() || readLock[variableName].size()>0)
+        // check if there is already a writeLock or a readLock on that variable by some other thread
+        while(writeLock.find(variableName)!=writeLock.end() || readLock[variableName].size()>0) {
+            mu.lock();
+            cout << "Wait_W-Lock [" << TransactionID << ", " << variableName << "]\n";
+            mu.unlock();
             pthread_cond_wait(&condition_var[variableName], &lock);
+        }
+
+        mu.lock();
+        cout << "W-Lock [" << TransactionID << ", " << variableName << "]\n";
+        mu.unlock();
         
         writeLock[variableName]=TransactionID;
+        // unlocking mutex
         pthread_mutex_unlock(&lock);
     }
 
     void upgradeLock (string TransactionID, string variableName){
-        // pthread_mutex_lock(&lock);
+        // mutex lock to avoid simulataneous manipulation of condition variable
+        pthread_mutex_lock(&lock);
 
-        //if some other thread is reading or writing this variable, put this thread on sleep
-        while (readLock[variableName].size()>1 || writeLock.find(variableName)!=writeLock.end())              
+        // if some other thread is reading or writing this variable, put this thread on sleep
+        while (readLock[variableName].size()>1 || writeLock.find(variableName)!=writeLock.end()) {    
+            mu.lock();
+            cout << "Wait_Upgrade [" << TransactionID << ", " << variableName << "]\n";
+            mu.unlock();
+      
             pthread_cond_wait(&condition_var[variableName], &lock);
+        }
 
+        // Clearing readlock 
         readLock[variableName].clear();
+
+        // Adding TID to writelog
         writeLock[variableName]=TransactionID;
+
+        mu.lock();
+        cout << "Upgrade [" << TransactionID << ", " << variableName << "]\n";
+        mu.unlock();
+        
+        // unlocking mutex
         pthread_mutex_unlock(&lock);
     }
 
-    //void downgradeLock (string TransactionID, string variableName) {}
-
-    void releaseLock (string transactionID){
+    void releaseLock (string TransactionID){
+        // mutex lock to avoid simulataneous manipulation of condition variable
         pthread_mutex_lock(&lock);
 
-        //release the readLocks of this transaction
+        // release the readLocks of this transaction
         for(auto &it:readLock){
-            if(it.second.find(transactionID)!=it.second.end()){
-                it.second.erase(transactionID);
+            if(it.second.find(TransactionID)!=it.second.end()){
+                it.second.erase(TransactionID);
+
+                mu.lock();
+                cout << "Unlock [" << TransactionID << ", " << it.first << "]\n";
+                mu.unlock();
+
                 pthread_cond_broadcast(&condition_var[it.first]);
             }
         }
-        //storing the variables that the transaction has write lock on
+        // storing the variables that the transaction has write lock on
         vector <string> tmp;
         for(auto it:writeLock){
-            if(it.second==transactionID) tmp.push_back(it.first);
+            if(it.second==TransactionID) tmp.push_back(it.first);
         }
         
-        //releasing the write lock
+        // releasing the write lock
         for(auto it:tmp){
             writeLock.erase(it);
-            //multiple threads might be waiting for a readlock which can be granted to all
+            
+            mu.lock();
+            cout << "Unlock [" << TransactionID << ", " << it << "]\n";
+            mu.unlock();
+
+            // multiple threads might be waiting for a readlock which can be granted to all
             pthread_cond_broadcast(&condition_var[it]);
         }
+
+        // unlocking mutex
         pthread_mutex_unlock(&lock);
     }
 };
@@ -134,8 +177,7 @@ public:
             backup[it.first] = it.second;
         }
 
-        cout << "Variables Initialized as : ";
-        printState();
+        cout << "Variables Initialized as : "; printState();
     }
 
     // Get the current value of a variable
@@ -143,16 +185,8 @@ public:
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
 
-        // mu.lock();
-        // cout << transactionID <<" trying to Read " << variableName << "\n"; 
-        // mu.unlock();
-
         acquireReadLock(transactionID, variableName);
         backup[variableName] = variables[variableName];
-
-        mu.lock();
-        cout << transactionID << " acquired ReadLock on " << variableName << "\n";
-        mu.unlock();
 
         return variables[variableName];
     }
@@ -161,19 +195,11 @@ public:
     void Write(string variableName, int newValue, string transactionID) {
         if (variables.find(variableName) == variables.end())
             throw "VariableNotFoundError";
-        
-        // mu.lock();
-        // cout << transactionID <<" trying to OverWrite " << variableName << "\n"; 
-        // mu.unlock();
 
         if (readLock[variableName].find(transactionID) != readLock[variableName].end())
             upgradeLock(transactionID, variableName);
         else 
             acquireWriteLock(transactionID, variableName);
-        
-        mu.lock();
-        cout << transactionID << " acquired WriteLock on " << variableName << "\n";
-        mu.unlock();
 
         backup[variableName] = variables[variableName];
         
@@ -186,23 +212,16 @@ public:
             if(it.second.find(transactionID) != it.second.end()) tmp.push_back(it.first);
         }
 
-        mu.lock();
-        for (auto it:tmp) cout << transactionID << " Released ReadLock on " << it << "\n";
-        mu.unlock();
         tmp.clear();
 
         for(auto it:writeLock){
             if(it.second==transactionID) tmp.push_back(it.first);
         }
 
-        mu.lock();
-        for (auto it:tmp) cout << transactionID << " Released WriteLock on " << it << "\n";
-        mu.unlock();
-
         releaseLock(transactionID);
 
         mu.lock();
-        cout << transactionID << " Commited !!" << "\n";
+        cout << "Commit [" << transactionID << "]\n";
         mu.unlock();
     }
 
@@ -212,9 +231,6 @@ public:
             if(it.second.find(transactionID) != it.second.end()) tmp.push_back(it.first);
         }
 
-        mu.lock();
-        for (auto it:tmp) cout << transactionID << " Released ReadLock on " << it << "\n";
-        mu.unlock();
         tmp.clear();
 
         for(auto it:writeLock){
@@ -223,15 +239,12 @@ public:
 
         for (auto it:tmp) {
             variables[it] = backup[it];
-            mu.lock();
-            cout << transactionID << " Released WriteLock on " << it << "\n";
-            mu.unlock();
         }
 
         releaseLock(transactionID);
 
         mu.lock();
-        cout << transactionID << " Aborted !!" << "\n";
+        cout << "Abort [" << transactionID << "]\n";
         mu.unlock();
     }
 
@@ -245,13 +258,7 @@ public:
     }
 
     void executeTransaction(Transaction currTransaction) {
-
         map <string, int> tmp;
-
-        // mu.lock();
-        // cout << currTransaction.ID << " Executing, DataBase State ";
-        // mu.unlock();
-        // printState();
 
         // Execute Transaction Operations Line By Line
         for (auto command:currTransaction.operations) {
@@ -388,20 +395,18 @@ void* execute(void * arg) {
     // of Transaction class and then dereferencing it
     Transaction T = *((Transaction *)arg);
 
-    mu.lock();
-    cout << T.ID << " recieved by execute\n";
-    mu.unlock();
-
+    // Execute Transaction
     db->executeTransaction(T);
-    
-    mu.lock();
-    cout << T.ID << " Execution Complete\n";
-    mu.unlock();
 
+    // for Bonus
     threadComplete[pthread_self()] = true;
+
+    // Exiting thread
     pthread_exit(NULL);
 }
 
+// ctrl+c signal callback function
+// prints the transaction ID's of all pending transactions
 void signal_callback(int sigint) {
     cout << "Transactions in a DeadLock are : ";
     for (int i = 0; i < threadComplete.size(); i++) {
@@ -434,15 +439,14 @@ int main(int argc, char *argv[]) {
     pthread_t trd[N];
 
     for(int i=0; i<N; i++){
-        mu.lock();
-        cout << "Sending " << listTransactions[i].ID << " over to execute \n";
-        mu.unlock();
 
         // Execute on a new thread
         pthread_create(&(trd[i]),NULL,execute,&listTransactions[i]);
         threadComplete[trd[i]] = false;
     }
 
+    // For Bonus
+    // Setting signal_callback function to run when user presses ctlr+c
     signal(SIGINT, signal_callback);
 
     void* status;
@@ -452,6 +456,7 @@ int main(int argc, char *argv[]) {
         pthread_join(trd[i],&status);
     }
 
+    // Printing the final value of all variables
     cout << "\n\nResult : "; db->printState();
     return 0;
 }
