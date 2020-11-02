@@ -6,6 +6,7 @@
 #include <map>
 #include <set>
 #include <mutex>
+#include <signal.h>
 
 using namespace std;
 
@@ -377,6 +378,8 @@ pair<DataBase, vector<Transaction> > parse(string file_name) {
 } 
 
 DataBase *db;
+map <pthread_t, bool> threadComplete;
+vector<Transaction> listTransactions;
 
 // parameters are passed as a void pointer by convention
 // in the thread function and it returns a void pointer too.
@@ -395,9 +398,19 @@ void* execute(void * arg) {
     cout << T.ID << " Execution Complete\n";
     mu.unlock();
 
+    threadComplete[pthread_self()] = true;
     pthread_exit(NULL);
 }
 
+void signal_callback(int sigint) {
+    cout << "Transactions in a DeadLock are : ";
+    for (int i = 0; i < threadComplete.size(); i++) {
+        if (threadComplete[i] == false) {
+            cout << listTransactions[i].ID << " ";
+        }
+    }
+    cout << "\n";
+}
 
 int main(int argc, char *argv[]) {
     string filename = "input1.txt";
@@ -409,7 +422,7 @@ int main(int argc, char *argv[]) {
     auto x = parse(filename);
 
     db = &(x.first);
-    vector<Transaction> listTransactions = x.second;
+    listTransactions = x.second;
 
     // Asking Database to Execute All Transactions
     // Different Threads to be made here
@@ -427,8 +440,10 @@ int main(int argc, char *argv[]) {
 
         // Execute on a new thread
         pthread_create(&(trd[i]),NULL,execute,&listTransactions[i]);
+        threadComplete[trd[i]] = false;
     }
 
+    signal(SIGINT, signal_callback);
 
     void* status;
     //Joining each thread with the main function
