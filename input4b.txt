@@ -1,42 +1,37 @@
-3
-A 25 B 50 X 12 Y 22 Z 94
+6
+u 10 v 10 w 10 x 10 y 10 z 10
 1
-R A
-A = A + 100
-W A
-R B
-B = B + 111
-W B
-R X
-R Z
-X = X + Z
-X = X + 11
-W X
-C
+R u
+u = u + 10
+W u
+A
 2
-R A
-A = A + A
-W A
-R B
-B = B + B
-W B
-R Y
-R A
-Y = Y + A
-A = A + 2
-W A
-W Y
+R u
+R v
+v = v + u
+W v
 C
 3
-R A
-A = A + 10
-W A
-R B
-B = B + 11
-W B
-R X
-R Z
-X = X + Z
-X = X + 11
-W X
+R v
+R w
+w = v + w
+W w
+C
+4
+R w
+R x
+x = w + x
+W x
 A
+5
+R x
+R y
+y = x + y
+W y
+A
+6
+R y
+R z
+z = y + z
+W z
+C
